@@ -1,0 +1,5 @@
+junit/*
+__pycache__
+model/*
+.vscode/*
+*.zip

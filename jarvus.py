@@ -1,27 +1,110 @@
-from gtts import gTTS
 from typing import Optional
-from vosk import Model, KaldiRecognizer
 import json
 import os
-import pygame
 import queue
-import requests
-import sounddevice as sd
 import subprocess
-import sys
 import threading
 
-is_playing = False
+from TTS.api import TTS
+from gtts import gTTS
+import sounddevice as sd
+import pygame
+import torch
+from vosk import Model, KaldiRecognizer
+import requests
+from transformers import AutoTokenizer
 
-model = Model("model")
-recognizer = KaldiRecognizer(model, 16000)
+import nltk
+
+nltk.download("punkt")
+nltk.download("punkt_tab")
+
+from nltk.tokenize import sent_tokenize
+
+pygame.mixer.init()
+
+SPEAKERS = [
+    "Claribel Dervla",
+    "Daisy Studious",
+    "Gracie Wise",
+    "Tammie Ema",
+    "Alison Dietlinde",
+    "Ana Florence",
+    "Annmarie Nele",
+    "Asya Anara",
+    "Brenda Stern",
+    "Gitta Nikolina",
+    "Henriette Usha",
+    "Sofia Hellen",
+    "Tammy Grit",
+    "Tanja Adelina",
+    "Vjollca Johnnie",
+    "Andrew Chipper",
+    "Badr Odhiambo",
+    "Dionisio Schuyler",
+    "Royston Min",
+    "Viktor Eka",
+    "Abrahan Mack",
+    "Adde Michal",
+    "Baldur Sanjin",
+    "Craig Gutsy",
+    "Damien Black",
+    "Gilberto Mathias",
+    "Ilkin Urbano",
+    "Kazuhiko Atallah",
+    "Ludvig Milivoj",
+    "Suad Qasim",
+    "Torcull Diarmuid",
+    "Viktor Menelaos",
+    "Zacharie Aimilios",
+    "Nova Hogarth",
+    "Maja Ruoho",
+    "Uta Obando",
+    "Lidiya Szekeres",
+    "Chandra MacFarland",
+    "Szofi Granger",
+    "Camilla Holmström",
+    "Lilya Stainthorpe",
+    "Zofija Kendrick",
+    "Narelle Moon",
+    "Barbora MacLean",
+    "Alexandra Hisakawa",
+    "Alma María",
+    "Rosemary Okafor",
+    "Ige Behringer",
+    "Filip Traverse",
+    "Damjan Chapman",
+    "Wulf Carlevaro",
+    "Aaron Dreschner",
+    "Kumar Dahl",
+    "Eugenio Mataracı",
+    "Ferran Simen",
+    "Xavier Hayasaka",
+    "Luis Moray",
+    "Marcos Rudaski",
+]
+
+Speaker_idx = 0
+
+# TTS Model
+TTS_MODEL = "tts_models/multilingual/multi-dataset/xtts_v2"
+
+# Get device
+tts_device = "cuda" if torch.cuda.is_available() else "cpu"
+
+# Tokenizer = AutoTokenizer.from_pretrained(TTS_MODEL)
+
+# Init TTS
+tts_model = TTS(TTS_MODEL).to(tts_device)
+print("TTS initialized")
+
+is_playing = threading.Lock()
+
+# Init STT
+stt_model = Model("model")
+recognizer = KaldiRecognizer(stt_model, 16000)
 audio_queue = queue.Queue()
-
-
-def callback(indata, frames, time, status):
-    if status:
-        print(status, file=sys.stderr)
-    audio_queue.put(bytes(indata))
+print("STT initialized")
 
 
 class GPT4AllAgent:
@@ -40,6 +123,7 @@ class GPT4AllAgent:
             api_url (str): The URL of the API endpoint. Defaults to 'http://localhost:5000/v1/chats/completion'.
         """
         self.api_url = api_url
+        self.short_term_memory = []
 
     def query_api(self, chat_query: str) -> Optional[str]:
         """
@@ -52,35 +136,58 @@ class GPT4AllAgent:
             Optional[str]: The response from the API if successful; otherwise, None.
         """
         chat_query = chat_query.upper()
-        if "SYSTEM CHECK" in chat_query:
-            chat_query = f"BASH {chat_query}"
-            chat_query = chat_query.replace("SYSTEM CHECK", "")
+        do_bash = False
+        do_python = False
 
-        chat_query = chat_query.replace(
-            "BASH",
-            (
-                "Respond only in the first BASH command that satisfies this "
-                "question (do not include back-ticks):"
-            ),
-        )
-        chat_query = chat_query.replace(
-            "PYTHON",
-            (
-                "Respond only with Python code that satisfies this request "
-                "using best practices for docstring comments and test coverage "
-                "(do not include any back-ticks, markdown or conversation): "
-            ),
-        )
+        if "SYSTEM CHECK" in chat_query:
+            chat_query = chat_query.replace("SYSTEM CHECK", "")
+            do_bash = True
+
+        if "BASH" in chat_query:
+            do_bash = True
+
+        if do_bash:
+            self.short_term_memory.append(
+                {
+                    "role": "user",
+                    "remove": True,
+                    "content": (
+                        "Respond only in the first BASH command that satisfies this "
+                        "question (do not include back-ticks):"
+                    ),
+                }
+            )
+        if "PYTHON" in chat_query:
+            do_python = True
+
+        if do_python:
+            self.short_term_memory.append(
+                {
+                    "role": "system",
+                    "content": (
+                        "Respond only with Python code that satisfies this request using best "
+                        "practices for docstring comments and test coverage (do not include "
+                        "any markdown or conversation)"
+                    ),
+                }
+            )
+
+        chat_query = chat_query.capitalize()
+
+        self.short_term_memory.append({"role": "user", "content": chat_query})
+
+        if len(self.short_term_memory) > 10:
+            self.short_term_memory.pop(0)
+
+        print(self.short_term_memory)
 
         try:
             headers = {"Content-Type": "application/json"}
             data = {
                 "model": "Llama 3 8B Instruct",
                 "messages": [
-                    {
-                        "role": "user",
-                        "content": chat_query,
-                    }
+                    {"role": m["role", "content" : m["content"]]}
+                    for m in self.short_term_memory
                 ],
                 "max_tokens": 2048,
                 "temperature": 0.7,
@@ -90,41 +197,83 @@ class GPT4AllAgent:
             response.raise_for_status()  # Raises an HTTPError for bad responses
 
             resp = json.loads(response.text)
-            return resp["choices"][0]["message"]["content"]
+            output = resp["choices"][0]["message"]["content"]
+
+            self.short_term_memory.append({"role": "assistant", "content": output})
+
+            if do_python or do_bash:
+                self.short_term_memory = [
+                    m for m in self.short_term_memory if "remove" not in m
+                ]
+
+            return output
         except requests.exceptions.RequestException as e:
             print(f"An error occurred: {e}")
             return None
 
 
 def say(what_to_say):
-    global is_playing
+    """
+    say the text using gTTS and pygame
 
-    is_playing = True
+    """
+    # Set the global variable to True to indicate that speech is playing
 
-    def play_tts():
-        tts = gTTS(text=what_to_say, lang="en-au", slow=False)
-        tts.save("/tmp/temp.mp3")
-        pygame.mixer.music.load("/tmp/temp.mp3")
+    sentences = sent_tokenize(what_to_say)
+    global Speaker_idx
+    Speaker_idx += 1
+    if Speaker_idx == len(SPEAKERS) - 1:
+        Speaker_idx = 0
+    print(f"Speaker {Speaker_idx}: {SPEAKERS[Speaker_idx]}")
+
+    def playback(filename):
+        pygame.mixer.music.load(filename)
         pygame.mixer.music.play()
         while pygame.mixer.music.get_busy():
             pygame.time.Clock().tick(10)
-        os.remove("/tmp/temp.mp3")
-        global is_playing
-        is_playing = False
+        os.remove(filename)
 
-    tts_thread = threading.Thread(target=play_tts)
-    tts_thread.start()
+    def play_gtts(sentence: str, sentence_nbr: int):
+        global is_playing
+        with is_playing:
+            tmp_spoken_output = f"/tmp/temp_{sentence_nbr}.mp3"
+            tts = gTTS(text=sentence, lang="en-au", slow=False)
+            tts.save(tmp_spoken_output)
+            playback(tmp_spoken_output)
+
+    def play_tts(sentence: str, sentence_nbr: int):
+        global is_playing
+        global Speaker_idx
+        with is_playing:
+            tmp_spoken_output = f"/tmp/temp_{sentence_nbr}.wav"
+
+            tts_model.tts_to_file(
+                text=sentence,
+                file_path=tmp_spoken_output,
+                language="en",
+                speaker=SPEAKERS[Speaker_idx],
+            )
+            playback(tmp_spoken_output)
+
+    for sentence_nbr, parsed_sentence in enumerate(sentences):
+        for sentence in parsed_sentence.split("\n"):
+            tts_thread = threading.Thread(
+                target=play_tts, args=(sentence, sentence_nbr)
+            )
+            tts_thread.start()
 
 
 def callback(indata, frames, time, status):
+    """
+    callback function for the sounddevice stream
+    suppresses the input if speech is playing
+    """
     global is_playing
 
     # If speech is playing, don't process the input
-    if is_playing:
-        return
-
-    # Process the input if it's not playing
-    audio_queue.put(bytes(indata))
+    with is_playing:
+        # Process the input if it's not playing
+        audio_queue.put(bytes(indata))
 
 
 def main():
@@ -146,7 +295,7 @@ def main():
 
                 if "jarvis" in what_i_heard:
                     what_i_heard = what_i_heard.replace("jarvis", "")
-                    if "system" in what_i_heard:
+                    if "system check" in what_i_heard:
                         do_system = True
                     else:
                         do_system = False
@@ -168,15 +317,22 @@ def main():
                                     say(result.stdout)
                                 else:
                                     print(output)
+
+                                output_to_read = "\n".joiuns(output)
+                                ack = agent.query_api(
+                                    f"I ran what you suggested and got this result: \n {output_to_read}"
+                                )
+                                print(ack)
                             except Exception as e:
                                 print(e)
                     else:
                         print(what_i_do)
-                        say(what_i_do.replace("*", ""))
+                        if what_i_do is not None:
+                            say(what_i_do.replace("*", ""))
 
                 else:
-                    print("you talking to me?")
-                    print(what_i_heard)
+                    if what_i_heard != "huh" and what_i_heard != "":
+                        print("you talking to me?  " + what_i_heard)
 
 
 if __name__ == "__main__":
