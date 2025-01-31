@@ -1,25 +1,26 @@
-from typing import Optional
-import json
-import os
-import queue
-import subprocess
-import threading
+"""jarvus.py: A simple voice assistant that uses the GPT-4-All API for natural language processing and TTS for speech synthesis."""
 
 from TTS.api import TTS
-from gtts import gTTS
-import sounddevice as sd
-import pygame
-import torch
+from typing import Optional
 from vosk import Model, KaldiRecognizer
+import json
+import os
+import pygame
+import queue
+import re
 import requests
-from transformers import AutoTokenizer
+import sounddevice as sd
+import subprocess
+import threading
+import torch
+
 
 import nltk
 
 nltk.download("punkt")
 nltk.download("punkt_tab")
-
 from nltk.tokenize import sent_tokenize
+
 
 pygame.mixer.init()
 
@@ -212,15 +213,26 @@ class GPT4AllAgent:
             return None
 
 
+def remove_markdown_list_periods(text):
+    # Regular expression to match numbered lists (1., 2., 3., ...)
+    # This will match any number followed by a period and a space (e.g., "1. ", "2. ")
+    return re.sub(r"^\d+\.\s*", "", text, flags=re.MULTILINE)
+
+
 def say(what_to_say):
     """
     say the text using gTTS and pygame
 
     """
-    # Set the global variable to True to indicate that speech is playing
-
-    sentences = sent_tokenize(what_to_say)
     global Speaker_idx
+
+    # Remove list periods
+    what_to_say = remove_markdown_list_periods(what_to_say)
+
+    # Split the text into sentences
+    sentences = sent_tokenize(what_to_say)
+
+    # Change the speaker - for testing
     Speaker_idx += 1
     if Speaker_idx == len(SPEAKERS) - 1:
         Speaker_idx = 0
@@ -232,14 +244,6 @@ def say(what_to_say):
         while pygame.mixer.music.get_busy():
             pygame.time.Clock().tick(10)
         os.remove(filename)
-
-    def play_gtts(sentence: str, sentence_nbr: int):
-        global is_playing
-        with is_playing:
-            tmp_spoken_output = f"/tmp/temp_{sentence_nbr}.mp3"
-            tts = gTTS(text=sentence, lang="en-au", slow=False)
-            tts.save(tmp_spoken_output)
-            playback(tmp_spoken_output)
 
     def play_tts(sentence: str, sentence_nbr: int):
         global is_playing
