@@ -46,6 +46,8 @@ Jarvus was built at tested on the following platform.
 
 ### Configure the Server
 
+**NOTE**: I will be providing a make file to build out the project in the near future.
+
 Make note of the port, or change the port to one you will use from your Jarvus Agent.
 
 ## Installing the Vosk Speech-To-Text Model
