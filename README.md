@@ -14,7 +14,7 @@
 
 ## Summary
 
-Ever wanted your own AI assistant like Tony Stark had?  This project cobles together existing resources to create something similar.  It utilizes the gpt4All application, which, along with a desktop interface, provides a backend server that Javus will talk to.  It uses Vosk to provide speech-to-text, but ignores anything it hears unless it hears its name (sounds like "Jarvis").  The agent runs until it hears "Goodbye".  Javus uses Vosk for speech-to-text (stt) and Coqui.ai for text-to-speech (tts).
+Ever wanted your own AI assistant like Tony Stark had?  This project cobbles together existing resources to create something similar.  It utilizes the gpt4All application, which, along with a desktop interface, provides a backend server that Javus will talk to.  It uses Vosk to provide speech-to-text, but ignores anything it hears unless it hears its name (sounds like "Jarvis").  The agent runs until it hears "Goodbye".  Javus uses Vosk for speech-to-text (stt) and Coqui.ai for text-to-speech (tts).
 
 Javus is being outfitted with the ability to "know" a bit about itself: if it hears "Jarvus, system check ...." it will attempt to translate your request to a BASH statement, execute it, and read the results back to you.  
 
@@ -85,7 +85,7 @@ pip install -r requirements.txt
 
 ## Where Are You Going With This?
 
-Current AI services like gpt4All and OpenAI's chatGPT use models that are trained on large volumes of data, but the services do not go out and find new information to work with -- it relies on what it was trained on.  There are some features of gpt4All such as the `LocalDocs` feature that allows you to expand the model's knowledge base.  By creating a custom agent between ourselves and the AI, we can create controled automation to help our productivity.
+Current AI services like gpt4All and OpenAI's chatGPT use models that are trained on large volumes of data, but the services do not go out and find new information to work with -- it relies on what it was trained on.  There are some features of gpt4All such as the `LocalDocs` feature that allows you to expand the model's knowledge base.  By creating a custom agent between ourselves and the AI, we can create controlled automation to help our productivity.
 
 **Just... do not run as root -- No Voltrons, please!**
 
