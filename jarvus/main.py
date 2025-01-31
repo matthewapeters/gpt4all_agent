@@ -139,8 +139,22 @@ class GPT4AllAgent:
         chat_query = chat_query.upper()
         do_bash = False
         do_python = False
+        do_syscheck_result = False
 
         self.short_term_memory.append({"role": "user"})
+
+        if "SYSTEMCHECKRESULT" in chat_query:
+            chat_query = chat_query.replace("SYSTEMCHECKRESULT", "")
+            do_syscheck_result = True
+
+        if do_syscheck_result:
+            self.short_term_memory[-1]["prepend"] = (
+                "These are the results from the code you provided."
+                "Summarize this information tersely (do not include any markdown or conversation). "
+                "Response may be conversational or technical. Replace commonly abreviated terms with their full names. "
+                "Do not explain that you are simply an AI assistant. "
+                "Results: "
+            )
 
         if "SYSTEM CHECK" in chat_query:
             chat_query = chat_query.replace("SYSTEM CHECK", "")
@@ -170,7 +184,9 @@ class GPT4AllAgent:
         chat_query = chat_query.capitalize().strip()
         self.short_term_memory[-1]["content"] = chat_query
 
+        # if the short term memory is too long, remove the oldest two entries
         if len(self.short_term_memory) > 10:
+            self.short_term_memory.pop(0)
             self.short_term_memory.pop(0)
 
         print(self.short_term_memory)
@@ -180,7 +196,10 @@ class GPT4AllAgent:
             data = {
                 "model": "Llama 3 8B Instruct",
                 "messages": [
-                    {"role": m["role"], "content": m.get("prepend", "") + m["content"]}
+                    {
+                        "role": m["role"],
+                        "content": f"{m.get('prepend', '')}{m['content']}",
+                    }
                     for m in self.short_term_memory
                 ],
                 "max_tokens": 2048,
@@ -195,7 +214,7 @@ class GPT4AllAgent:
 
             self.short_term_memory.append({"role": "assistant", "content": output})
 
-            if do_python or do_bash:
+            if do_python or do_bash or do_syscheck_result:
                 # strip out the prepend so it does not confuse future queries
                 self.short_term_memory = [
                     {"role": m["role"], "content": m["content"]}
@@ -251,16 +270,18 @@ class GPT4AllAgent:
 
         if len(sentences) <= 3:
             for sentence_nbr, sentence in enumerate(sentences):
-                tts_thread = threading.Thread(
-                    target=play_tts, args=(sentence, sentence_nbr)
-                )
-                tts_thread.start()
+                if sentence:
+                    tts_thread = threading.Thread(
+                        target=play_tts, args=(sentence, sentence_nbr)
+                    )
+                    tts_thread.start()
         else:
             for sentence_nbr, sentence in enumerate(sentences):
-                play_tts(sentence, sentence_nbr)
-                # catch your breath - you have a lot to say
-                # gives user a chance to interrupt (IE Goodbye)
-                time.sleep(0.5)
+                if sentence:
+                    play_tts(sentence, sentence_nbr)
+                    # catch your breath - you have a lot to say
+                    # gives user a chance to interrupt (IE Goodbye)
+                    time.sleep(0.5)
 
     def callback(self, indata, frames, time, status):
         """
@@ -295,7 +316,7 @@ def main():
                     return
 
                 if "jarvis" in what_i_heard or what_i_heard.startswith(
-                    ("jarvis", "jarvus", "drivers")
+                    ("jarvis", "jarvus", "drivers", "system check")
                 ):
                     what_i_heard = what_i_heard.replace("jarvis", "")
                     if "system check" in what_i_heard:
@@ -316,16 +337,13 @@ def main():
                                 )
                                 print(f"\n{result.stdout}")
                                 output = result.stdout.split("\n")
-                                if len(output) <= 2:
-                                    agent.say(result.stdout)
-                                else:
-                                    print(output)
-
                                 output_to_read = "\n".join(output)
                                 ack = agent.query_api(
-                                    f"I ran what you suggested and got this result: \n {output_to_read}"
+                                    f"SYSTEMCHECKRESULT: \n{output_to_read}"
                                 )
-                                print(ack)
+                                if ack:
+                                    print(ack)
+                                    agent.say(ack.replace("*", ""))
                             except Exception as e:
                                 print(e)
                     else:

@@ -8,4 +8,4 @@ eval "$(pyenv virtualenv-init -)"
 
 pyenv activate jarvus
 
-python jarvus.py 2>/dev/null
+python -m jarvus.main  2>/dev/null
