@@ -341,6 +341,11 @@ def main():
             data = agent.audio_queue.get()
             if agent.recognizer.AcceptWaveform(data):
                 what_i_heard = json.loads(agent.recognizer.Result())["text"]
+
+                if "change of topic" in what_i_heard:
+                    agent.short_term_memory = []
+                    continue
+
                 if "goodbye" in what_i_heard:
                     print("Goodbye!")
                     agent.say("Good bye now!")

@@ -71,10 +71,10 @@ pip install -r requirements.txt
 
 1. Start gpt4All
 2. Navigate to Chats and click Server Chat.  Note the antena icon in the lower-left (above the Nomic logo).  When it animates, the gpt4All server is running
-3. Launch the Javus agent
+3. Launch the Jarvus agent
 
     ```bash
-    python javurs.py
+    ./jarvus.sh
     ```  
 
 4. Talk to Jarvus. Try things like:  
