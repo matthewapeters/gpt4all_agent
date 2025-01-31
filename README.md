@@ -14,9 +14,9 @@
 
 ## Summary
 
-Ever wanted your own AI assistant like Tony Stark had?  This project cobbles together existing resources to create something similar.  It utilizes the gpt4All application, which, along with a desktop interface, provides a backend server that Javus will talk to.  It uses Vosk to provide speech-to-text, but ignores anything it hears unless it hears its name (sounds like "Jarvis").  The agent runs until it hears "Goodbye".  Javus uses Vosk for speech-to-text (stt) and Coqui.ai for text-to-speech (tts).
+Ever wanted your own AI assistant like Tony Stark had?  This project cobbles together existing resources to create something similar.  It utilizes the gpt4All application, which, along with a desktop interface, provides a backend server that Jarvus will talk to.  It uses Vosk to provide speech-to-text, but ignores anything it hears unless it hears its name (sounds like "Jarvis").  The agent runs until it hears "Goodbye".  Jarvus uses Vosk for speech-to-text (stt) and Coqui.ai for text-to-speech (tts).
 
-Javus is being outfitted with the ability to "know" a bit about itself: if it hears "Jarvus, system check ...." it will attempt to translate your request to a BASH statement, execute it, and read the results back to you.  
+Jarvus is being outfitted with the ability to "know" a bit about itself: if it hears "Jarvus, system check ...." it will attempt to translate your request to a BASH statement, execute it, and read the results back to you.  
 
 **NOTE**: it is not the AI that is invoking BASH - it is the python application, *so do not run it as root!*  
 
@@ -24,7 +24,7 @@ This is really just a proof of concept - build and run it at your own risk, but 
 
 ## Platform Requirements
 
-Javus was built at tested on the following platform.
+Jarvus was built at tested on the following platform.
 
 ```bash
 
