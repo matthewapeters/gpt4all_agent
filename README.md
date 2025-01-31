@@ -67,8 +67,6 @@ pip install -U pip
 pip install -r requirements.txt
 ```
 
-<<<<<<< HEAD
-
 ## Running
 
 1. Start gpt4All
