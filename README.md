@@ -79,8 +79,8 @@ pip install -r requirements.txt
 
 4. Talk to Jarvus. Try things like:  
      a. `Good Morning, Jarvus`  
-     b. `Jarvus, system check: what is the current date and time?`  
-     c. `Jarvus, system check: how much free space is left on my root file system?`  
+     b. `system check: what is the current date and time?`  
+     c. `system check: how much free space is left on my root file system?`  
 5. When you are done, say "Goodbye".
 
 ## Where Are You Going With This?

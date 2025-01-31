@@ -3,6 +3,7 @@
 from TTS.api import TTS
 from typing import Optional
 from vosk import Model, KaldiRecognizer
+import configparser
 import json
 import os
 import pygame
@@ -21,6 +22,8 @@ import nltk
 nltk.download("punkt")
 nltk.download("punkt_tab")
 from nltk.tokenize import sent_tokenize
+
+from .posix_paths import detect_posix_path
 
 
 pygame.mixer.init()
@@ -95,6 +98,16 @@ class GPT4AllAgent:
         api_url (str): The URL of the API endpoint.
     """
 
+    def load_config(self, file_path="./config.ini"):
+        config = configparser.ConfigParser()
+        try:
+            config.read(file_path)
+            agent_voice = config.getint("agent", "voice")
+            return {"agent": {"voice": agent_voice}}
+        except (configparser.NoSectionError, configparser.NoOptionError) as e:
+            print(f"Configuration error: {e}")
+            return None
+
     def __init__(self, api_url: str = "http://localhost:5000/v1/chat/completions"):
         """
         Initializes a new instance of GPT4AllAgent.
@@ -102,9 +115,12 @@ class GPT4AllAgent:
         Args:
             api_url (str): The URL of the API endpoint. Defaults to 'http://localhost:5000/v1/chats/completion'.
         """
+        conf = self.load_config()
+
         self.api_url = api_url
         self.short_term_memory = []
-        self.Speaker_idx = 0
+        self.random_speaker_idx = 0
+        self.configured_speaker_id = conf.get("agent", {"voice": -1}).get("voice", -1)
 
         # TTS Model
         self.TTS_MODEL = "tts_models/multilingual/multi-dataset/xtts_v2"
@@ -125,6 +141,26 @@ class GPT4AllAgent:
         self.recognizer = KaldiRecognizer(self.stt_model, 16000)
         self.audio_queue = queue.Queue()
         print("STT initialized")
+
+    @property
+    def speaker_voice(self) -> int:
+        if self.configured_speaker_id == -1:
+            # Change the speaker - for testing
+            self.random_speaker_idx += 1
+            if self.random_speaker_idx == len(SPEAKERS) - 1:
+                self.random_speaker_idx = 0
+            print(
+                f"Speaker {self.random_speaker_idx}: "
+                f"{SPEAKERS[self.random_speaker_idx]}"
+            )
+
+            return self.random_speaker_idx
+        else:
+            print(
+                f"Speaker {self.configured_speaker_id}: "
+                f"{SPEAKERS[self.configured_speaker_id]}"
+            )
+            return self.configured_speaker_id
 
     def query_api(self, chat_query: str) -> Optional[str]:
         """
@@ -243,12 +279,6 @@ class GPT4AllAgent:
         # Split the text into sentences
         sentences = [ss for s in sent_tokenize(what_to_say) for ss in s.split("\n")]
 
-        # Change the speaker - for testing
-        self.Speaker_idx += 1
-        if self.Speaker_idx == len(SPEAKERS) - 1:
-            self.Speaker_idx = 0
-        print(f"Speaker {self.Speaker_idx}: {SPEAKERS[self.Speaker_idx]}")
-
         def playback(filename):
             pygame.mixer.music.load(filename)
             pygame.mixer.music.play()
@@ -264,7 +294,7 @@ class GPT4AllAgent:
                     text=sentence,
                     file_path=tmp_spoken_output,
                     language="en",
-                    speaker=SPEAKERS[self.Speaker_idx],
+                    speaker=SPEAKERS[self.speaker_voice],
                 )
                 playback(tmp_spoken_output)
 
@@ -272,13 +302,14 @@ class GPT4AllAgent:
             for sentence_nbr, sentence in enumerate(sentences):
                 if sentence:
                     tts_thread = threading.Thread(
-                        target=play_tts, args=(sentence, sentence_nbr)
+                        target=play_tts,
+                        args=(detect_posix_path(sentence), sentence_nbr),
                     )
                     tts_thread.start()
         else:
             for sentence_nbr, sentence in enumerate(sentences):
                 if sentence:
-                    play_tts(sentence, sentence_nbr)
+                    play_tts(detect_posix_path(sentence), sentence_nbr)
                     # catch your breath - you have a lot to say
                     # gives user a chance to interrupt (IE Goodbye)
                     time.sleep(0.5)
