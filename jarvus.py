@@ -186,7 +186,7 @@ class GPT4AllAgent:
             data = {
                 "model": "Llama 3 8B Instruct",
                 "messages": [
-                    {"role": m["role", "content" : m["content"]]}
+                    {"role": m["role"], "content": m["content"]}
                     for m in self.short_term_memory
                 ],
                 "max_tokens": 2048,
