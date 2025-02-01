@@ -1,5 +1,5 @@
 junit/*
 __pycache__
-model/*
+vosk_model/*
 .vscode/*
 *.zip
