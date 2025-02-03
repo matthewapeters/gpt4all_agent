@@ -6,8 +6,12 @@ from TTS.api import TTS
 from typing import Optional
 from vosk import Model, KaldiRecognizer
 import configparser
+import json
+from nltk.tokenize import sent_tokenize
 import os
+import pygame
 import queue
+import random
 import re
 import requests
 import threading
@@ -15,6 +19,7 @@ import time
 import torch
 
 from jarvus import SPEAKERS
+from jarvus.posix_paths import detect_posix_path
 
 
 class Agent:
@@ -66,7 +71,7 @@ class Agent:
         self.is_playing = threading.Lock()
 
         # Init STT
-        self.stt_model = Model("model")
+        self.stt_model = Model("vosk_model")
         self.recognizer = KaldiRecognizer(self.stt_model, 16000)
         self.audio_queue = queue.Queue()
         print("STT initialized")
@@ -105,6 +110,7 @@ class Agent:
         do_bash = False
         do_python = False
         do_syscheck_result = False
+        do_daily_feed = False
 
         self.short_term_memory.append({"role": "user"})
 
@@ -119,6 +125,18 @@ class Agent:
                 "Response may be conversational or technical. Replace commonly abreviated terms with their full names. "
                 "Do not explain that you are simply an AI assistant. "
                 "Results: "
+            )
+
+        if (
+            "DAILY FEED" in chat_query
+            or "TODAY'S HEADLINES" in chat_query
+            or "DAILY NEWS FEED" in chat_query
+        ):
+            do_daily_feed = True
+            self.short_term_memory[-1]["prepend"] = (
+                "In LocalDocs there is a file named today.txt, which contains today's feed of Associated Press headlines. "
+                "Review the document, as I have questions about its contents. Respond only if there is relevant content in this file.  "
+                "Do not refer to the file by name when responding. "
             )
 
         if "SYSTEM CHECK" in chat_query:
@@ -201,6 +219,8 @@ class Agent:
         say the text using gTTS and pygame
 
         """
+        #  remove asterisks
+        what_to_say = what_to_say.replace("*", "")
 
         # Remove list periods
         what_to_say = self.remove_markdown_list_periods(what_to_say)
@@ -252,3 +272,51 @@ class Agent:
         with self.is_playing:
             # Process the input if it's not playing
             self.audio_queue.put(bytes(indata))
+
+    def say_goodbye(self):
+        """
+        say_goodbye
+
+        """
+        goodbyes = [
+            "Good bye, now!",
+            "Goodbye!",
+            "See you later!",
+            "Toodles!",
+            "Bye!",
+            "Later, Gator!",
+            "In a while, Crocodile",
+            "Adios!",
+            "Farewell!",
+            "Bye-bye!",
+            "Cheerio!",
+            "So long!",
+            "Till next time!",
+            "Take care!",
+            "Peace out!",
+            "I'm out!",
+            "Jarvus out!",
+            "Don't be a stranger!",
+            "Catch you later!",
+            "Parting is such sweet sorrow!",
+            "Goodbye, friend!",
+            "Anon!",
+        ]
+        sign_off = goodbyes[random.randint(0, len(goodbyes) - 1)]
+        print(f"{sign_off}")
+        self.say(sign_off)
+        return
+
+    def say_hello(self):
+        greetings = [
+            "Hello!  I am Jarvus!",
+            "Greetings and salutations!",
+            "Hi! I am ready!",
+            "Salutations!",
+            "Ni Hao Ma!",
+        ]
+
+        sign_on = greetings[random.randint(0, len(greetings) - 1)]
+        print(f"{sign_on}")
+        self.say(sign_on)
+        return
