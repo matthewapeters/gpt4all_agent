@@ -3,3 +3,4 @@ __pycache__
 vosk_model/*
 .vscode/*
 *.zip
+notebooks/.ipynb_checkpoints/RSSDailyNews-checkpoint.ipynb

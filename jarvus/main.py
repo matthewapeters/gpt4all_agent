@@ -40,6 +40,7 @@ def main():
     agent = Agent()
     pygame.mixer.init()
     listening = True
+    agent.get_latest_news()
     agent.say_hello()
 
     with sd.RawInputStream(

@@ -2,6 +2,7 @@
 jarvus.agent
 """
 
+from datetime import datetime
 from TTS.api import TTS
 from typing import Optional
 from vosk import Model, KaldiRecognizer
@@ -20,6 +21,7 @@ import torch
 
 from jarvus import SPEAKERS
 from jarvus.posix_paths import detect_posix_path
+from jarvus.ap_news import get_article, get_latest_news
 
 
 class Agent:
@@ -55,6 +57,7 @@ class Agent:
         self.short_term_memory = []
         self.random_speaker_idx = -1
         self.configured_speaker_id = conf.get("agent", {"voice": -1}).get("voice", -1)
+        self.urls = []
 
         # TTS Model
         self.TTS_MODEL = "tts_models/multilingual/multi-dataset/xtts_v2"
@@ -111,6 +114,7 @@ class Agent:
         do_python = False
         do_syscheck_result = False
         do_daily_feed = False
+        model = "Llama 3 8B Instruct"
 
         self.short_term_memory.append({"role": "user"})
 
@@ -130,14 +134,34 @@ class Agent:
         if (
             "DAILY FEED" in chat_query
             or "TODAY'S HEADLINES" in chat_query
-            or "DAILY NEWS FEED" in chat_query
+            or "DAILY NEWS" in chat_query
+            or "TODAY'S NEWS" in chat_query
         ):
             do_daily_feed = True
             self.short_term_memory[-1]["prepend"] = (
                 "In LocalDocs there is a file named today.txt, which contains today's feed of Associated Press headlines. "
-                "Review the document, as I have questions about its contents. Respond only if there is relevant content in this file.  "
+                "The file is structured like this:\n"
+                "[headline:] Dogs and Cats Best Friends\n[url:] https://stories.com/dogs-and-cats-best-friends\n\n"
+                "Review the document, as I have questions about its contents. Respond only with relevant content from this file.  "
                 "Do not refer to the file by name when responding. "
+                "Only respond with information found in this file. "
+                "If no corresponding headlines are found, respond with 'I did not find anything about xxx' where xxx is the requested subject."
+                "When corresponding content is found, respond with the corresponding text from the file, including the tags for [headline:] and [url]."
+                "Finally, summarize any findings.  \nA response might look like this:\n"
+                "```[headline:] Dogs and Cats Best Friends\n[url:] https://stories.com/dogs-and-cats-best-friends\nApparently, dogs and cats like each other.```\n"
             )
+
+            model = "lmstudio-community/Mistral-7B-Instruct-v0.3-GGUF"
+
+        if "SUMMARIZE STORY" in chat_query:
+            self.get_articles()
+            today = datetime.now().strftime(r"%Y%m%d")
+            self.short_term_memory[-1]["prepend"] = (
+                f"In LocalDocs under folder {today} there is an article related to what we have been discussing. "
+                "Review the article and provide a summary of it.  Do not give the name of the article."
+                "Do mention date and author if present in article."
+            )
+            model = "lmstudio-community/Mistral-7B-Instruct-v0.3-GGUF"
 
         if "SYSTEM CHECK" in chat_query:
             chat_query = chat_query.replace("SYSTEM CHECK", "")
@@ -172,12 +196,12 @@ class Agent:
             self.short_term_memory.pop(0)
             self.short_term_memory.pop(0)
 
-        print(self.short_term_memory)
+        print(model, self.short_term_memory)
 
         try:
             headers = {"Content-Type": "application/json"}
             data = {
-                "model": "Llama 3 8B Instruct",
+                "model": model,
                 "messages": [
                     {
                         "role": m["role"],
@@ -216,7 +240,7 @@ class Agent:
 
     def say(self, what_to_say):
         """
-        say the text using gTTS and pygame
+        say the text using coquie and pygame
 
         """
         #  remove asterisks
@@ -240,7 +264,7 @@ class Agent:
                 tmp_spoken_output = f"/tmp/temp_{sentence_nbr}.wav"
 
                 self.tts_model.tts_to_file(
-                    text=sentence,
+                    text=detect_posix_path(sentence),
                     file_path=tmp_spoken_output,
                     language="en",
                     speaker=SPEAKERS[self.speaker_voice],
@@ -250,15 +274,23 @@ class Agent:
         if len(sentences) <= 3:
             for sentence_nbr, sentence in enumerate(sentences):
                 if sentence:
+                    if sentence.startswith("[url:] "):
+                        self.urls = [sentence.replace("[url:] ", ""), *self.urls]
+                        print(sentence)
+                        continue
                     tts_thread = threading.Thread(
                         target=play_tts,
-                        args=(detect_posix_path(sentence), sentence_nbr),
+                        args=(sentence, sentence_nbr),
                     )
                     tts_thread.start()
         else:
             for sentence_nbr, sentence in enumerate(sentences):
                 if sentence:
-                    play_tts(detect_posix_path(sentence), sentence_nbr)
+                    if sentence.startswith("[url:] "):
+                        self.urls = [sentence.replace("[url:] ", ""), *self.urls]
+                        print(sentence)
+                        continue
+                    play_tts(sentence, sentence_nbr)
                     # catch your breath - you have a lot to say
                     # gives user a chance to interrupt (IE Goodbye)
                     time.sleep(0.5)
@@ -320,3 +352,18 @@ class Agent:
         print(f"{sign_on}")
         self.say(sign_on)
         return
+
+    def get_articles(self):
+        for _ in range(len(self.urls)):
+            story_url = self.urls.pop(0)
+            try:
+                get_article(story_url)
+            except Exception as e:
+                print(f"could not download story {story_url}: {e}")
+
+    @staticmethod
+    def get_latest_news():
+        try:
+            get_latest_news()
+        except Exception as e:
+            print(f"Could not download daily news feed: {e}")
